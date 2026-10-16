@@ -1,0 +1,6 @@
+{
+  "name": "StudySync",
+  "description": "Manajemen tugas dan jadwal harian komprehensif bagi siswa dan mahasiswa dengan pengingat, analitik, dan kalender seimbang.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

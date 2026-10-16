@@ -1,0 +1,176 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100 &&
+             (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 150)) &&
+             (!('targetDailyStudyMinutes' in data) || data.targetDailyStudyMinutes is int) &&
+             (!('encryptedBackupPayload' in data) || data.encryptedBackupPayload == null || (data.encryptedBackupPayload is string && data.encryptedBackupPayload.size() <= 500000)) &&
+             (!('backupTimestamp' in data) || data.backupTimestamp == null || data.backupTimestamp is timestamp) &&
+             (!('darkModeEnabled' in data) || data.darkModeEnabled is bool);
+    }
+
+    function isValidTaskItem(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100 &&
+             (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 2000)) &&
+             data.dueDate is string && data.dueDate.size() == 10 &&
+             (!('dueTime' in data) || data.dueTime == null || (data.dueTime is string && data.dueTime.size() <= 10)) &&
+             (!('priority' in data) || data.priority in ['LOW', 'MEDIUM', 'HIGH']) &&
+             data.status in ['PENDING', 'IN_PROGRESS', 'COMPLETED'] &&
+             (!('estimatedMinutes' in data) || data.estimatedMinutes is int) &&
+             (!('loggedMinutes' in data) || data.loggedMinutes is int) &&
+             (!('reminderMinutesBefore' in data) || data.reminderMinutesBefore is int);
+    }
+
+    function isValidScheduleBlock(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 150 &&
+             data.category in ['STUDY', 'BREAK', 'MEAL', 'EXERCISE', 'LEISURE'] &&
+             data.dayOfWeek is int && data.dayOfWeek >= 1 && data.dayOfWeek <= 7 &&
+             data.startTime is string && data.startTime.size() == 5 &&
+             data.endTime is string && data.endTime.size() == 5 &&
+             (!('locationName' in data) || data.locationName == null || (data.locationName is string && data.locationName.size() <= 150)) &&
+             (!('latitude' in data) || data.latitude == null || (data.latitude is number)) &&
+             (!('longitude' in data) || data.longitude == null || (data.longitude is number)) &&
+             (!('groupCode' in data) || data.groupCode == null || (data.groupCode is string && data.groupCode.size() <= 20)) &&
+             (!('isAutoAdjustable' in data) || data.isAutoAdjustable is bool);
+    }
+
+    function isValidStudySession(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100 &&
+             (!('taskId' in data) || data.taskId == null || (data.taskId is string && data.taskId.size() <= 128)) &&
+             data.durationMinutes is int && data.durationMinutes > 0 && data.durationMinutes <= 1440 &&
+             data.dateStr is string && data.dateStr.size() == 10 &&
+             (!('qualityRating' in data) || (data.qualityRating is int && data.qualityRating >= 1 && data.qualityRating <= 5)) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 1000));
+    }
+
+    function isValidGroupSchedule(data) {
+      return data.groupCode is string && data.groupCode.size() >= 4 && data.groupCode.size() <= 16 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 500)) &&
+             data.ownerId is string && data.memberUids is list && data.memberUids.size() <= 100;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       isValidUserProfile(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'email', 'targetDailyStudyMinutes',
+                         'encryptedBackupPayload', 'backupTimestamp', 'darkModeEnabled', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /tasks/{taskId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+                       isValidId(taskId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       isValidTaskItem(incoming());
+      allow update: if isSignedIn() &&
+                       isValidId(taskId) &&
+                       existing().userId == request.auth.uid &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTaskItem(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'title', 'subject', 'description', 'dueDate', 'dueTime',
+                         'priority', 'status', 'estimatedMinutes', 'loggedMinutes',
+                         'reminderMinutesBefore', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(taskId) && resource.data.userId == request.auth.uid;
+    }
+
+    match /schedules/{scheduleId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+                       isValidId(scheduleId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       isValidScheduleBlock(incoming());
+      allow update: if isSignedIn() &&
+                       isValidId(scheduleId) &&
+                       existing().userId == request.auth.uid &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidScheduleBlock(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'title', 'category', 'dayOfWeek', 'startTime', 'endTime',
+                         'locationName', 'latitude', 'longitude', 'groupCode',
+                         'isAutoAdjustable', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(scheduleId) && resource.data.userId == request.auth.uid;
+    }
+
+    match /study_sessions/{sessionId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+                       isValidId(sessionId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       isValidStudySession(incoming());
+      allow update: if false; // Study sessions are immutable records
+      allow delete: if isSignedIn() && isValidId(sessionId) && resource.data.userId == request.auth.uid;
+    }
+
+    match /group_schedules/{groupId} {
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.uid in resource.data.memberUids);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.uid in resource.data.memberUids);
+      allow create: if isSignedIn() &&
+                       isValidId(groupId) &&
+                       incoming().ownerId == request.auth.uid &&
+                       request.auth.uid in incoming().memberUids &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       isValidGroupSchedule(incoming());
+      allow update: if isSignedIn() &&
+                       isValidId(groupId) &&
+                       (existing().ownerId == request.auth.uid || request.auth.uid in incoming().memberUids) &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidGroupSchedule(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'description', 'memberUids', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(groupId) && resource.data.ownerId == request.auth.uid;
+    }
+  }
+}

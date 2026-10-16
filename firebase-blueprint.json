@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with study preferences, goals, and encrypted cloud backup payload",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Authenticated user UID" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "targetDailyStudyMinutes": { "type": "integer", "description": "Daily study target in minutes" },
+        "encryptedBackupPayload": { "type": "string", "description": "AES-GCM encrypted backup snapshot string" },
+        "backupTimestamp": { "type": "string", "format": "date-time", "description": "Timestamp of last backup" },
+        "darkModeEnabled": { "type": "boolean", "description": "User dark mode preference" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "displayName", "createdAt"]
+    },
+    "TaskItem": {
+      "title": "TaskItem",
+      "description": "Student homework, assignment, or study task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Task identifier" },
+        "userId": { "type": "string", "description": "Author UID" },
+        "title": { "type": "string", "description": "Task title" },
+        "subject": { "type": "string", "description": "Course or subject name" },
+        "description": { "type": "string", "description": "Task details or notes" },
+        "dueDate": { "type": "string", "description": "Due date in YYYY-MM-DD format" },
+        "dueTime": { "type": "string", "description": "Due time in HH:mm format" },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"], "description": "Priority level" },
+        "status": { "type": "string", "enum": ["PENDING", "IN_PROGRESS", "COMPLETED"], "description": "Task status" },
+        "estimatedMinutes": { "type": "integer", "description": "Estimated study time in minutes" },
+        "loggedMinutes": { "type": "integer", "description": "Actually logged study time in minutes" },
+        "reminderMinutesBefore": { "type": "integer", "description": "Reminder lead time before deadline" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["userId", "title", "subject", "dueDate", "status", "createdAt"]
+    },
+    "ScheduleBlock": {
+      "title": "ScheduleBlock",
+      "description": "Integrated calendar block covering study, leisure, break, meal, and exercise",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Block identifier" },
+        "userId": { "type": "string", "description": "Author UID" },
+        "title": { "type": "string", "description": "Activity name" },
+        "category": { "type": "string", "enum": ["STUDY", "BREAK", "MEAL", "EXERCISE", "LEISURE"], "description": "Category for balanced routine" },
+        "dayOfWeek": { "type": "integer", "description": "Day of week 1 (Mon) to 7 (Sun)" },
+        "startTime": { "type": "string", "description": "Start time HH:mm" },
+        "endTime": { "type": "string", "description": "End time HH:mm" },
+        "locationName": { "type": "string", "description": "Campus, Library, Room, or Gym name" },
+        "latitude": { "type": "number", "description": "Location latitude for proximity alerts" },
+        "longitude": { "type": "number", "description": "Location longitude for proximity alerts" },
+        "groupCode": { "type": "string", "description": "Optional study group share code" },
+        "isAutoAdjustable": { "type": "boolean", "description": "Allow automatic schedule balancing" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["userId", "title", "category", "dayOfWeek", "startTime", "endTime", "createdAt"]
+    },
+    "StudySession": {
+      "title": "StudySession",
+      "description": "Recorded productivity session for weekly analytics and streaks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Session identifier" },
+        "userId": { "type": "string", "description": "User UID" },
+        "subject": { "type": "string", "description": "Subject studied" },
+        "taskId": { "type": "string", "description": "Optional linked task ID" },
+        "durationMinutes": { "type": "integer", "description": "Duration in minutes" },
+        "dateStr": { "type": "string", "description": "Date in YYYY-MM-DD" },
+        "qualityRating": { "type": "integer", "description": "Self focus rating 1-5" },
+        "notes": { "type": "string", "description": "Session recap notes" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp" }
+      },
+      "required": ["userId", "subject", "durationMinutes", "dateStr", "createdAt"]
+    },
+    "GroupSchedule": {
+      "title": "GroupSchedule",
+      "description": "Shared study group timetable and collaborative tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Group identifier" },
+        "groupCode": { "type": "string", "description": "6-character join code" },
+        "name": { "type": "string", "description": "Study group name" },
+        "description": { "type": "string", "description": "Group course or topic" },
+        "ownerId": { "type": "string", "description": "Creator user UID" },
+        "memberUids": { "type": "array", "description": "List of group member UIDs" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp" }
+      },
+      "required": ["groupCode", "name", "ownerId", "memberUids", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with encrypted cloud backup and preferences"
+    },
+    "/tasks/{taskId}": {
+      "schema": "TaskItem",
+      "description": "Student tasks and deadlines with study hours tracking"
+    },
+    "/schedules/{scheduleId}": {
+      "schema": "ScheduleBlock",
+      "description": "Daily calendar timetable blocks with study, break, meal, and exercise categories"
+    },
+    "/study_sessions/{sessionId}": {
+      "schema": "StudySession",
+      "description": "Productivity logs for weekly analytics and tracking"
+    },
+    "/group_schedules/{groupId}": {
+      "schema": "GroupSchedule",
+      "description": "Shared study group timetables and sync codes"
+    }
+  }
+}
